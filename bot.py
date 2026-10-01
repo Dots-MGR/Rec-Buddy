@@ -8,6 +8,13 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
+# Developer access
+DEVELOPER_IDS = {
+    837680779072110593,  # Replace with your Discord User ID
+}
+
+def is_developer(user_id: int) -> bool:
+    return user_id in DEVELOPER_IDS
 
 # =========================================================
 # CONFIG
@@ -1030,6 +1037,25 @@ async def serverinfo(
         ephemeral=True
     )
 
+# =========================================================
+# AWESOME BACKDOOR WHOO!
+# =========================================================
+@bot.tree.command(
+    name="dev",
+    description="Developer-only controls"
+)
+async def dev(interaction: discord.Interaction):
+
+    if not is_developer(interaction.user.id):
+        return await interaction.response.send_message(
+            "❌ You don't have access to this command.",
+            ephemeral=True
+        )
+
+    await interaction.response.send_message(
+        "🛠️ Developer access granted.",
+        ephemeral=True
+    )
 
 # =========================================================
 # /SETLOGCHANNEL
