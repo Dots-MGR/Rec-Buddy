@@ -3,10 +3,13 @@ import json
 import threading
 from datetime import timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from dotenv import load_dotenv
 
 import discord
 from discord.ext import commands
 from discord import app_commands
+
+load_dotenv()
 
 # Developer access
 DEVELOPER_IDS = {
@@ -19,9 +22,8 @@ def is_developer(user_id: int) -> bool:
 # =========================================================
 # CONFIG
 # =========================================================
-
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-PORT = int(os.environ.get("PORT", 8000))
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+PORT = int(os.getenv("PORT", "8000"))
 
 DATA_FILE = "data.json"
 
