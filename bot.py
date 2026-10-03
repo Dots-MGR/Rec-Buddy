@@ -16,8 +16,6 @@ DEVELOPER_IDS = {
     837680779072110593,  
 }
 
-BOT_COMMANDS_LOCKED = False
-
 def is_developer(user_id: int) -> bool:
     return user_id in DEVELOPER_IDS
 
@@ -70,12 +68,26 @@ bot = commands.Bot(
 )
 
 # =========================================================
+# BOT COMMAND LOCK
+# =========================================================
+
+BOT_COMMANDS_LOCKED = False
+
+async def bot_lock_check(interaction: discord.Interaction) -> bool:
+    if not BOT_COMMANDS_LOCKED:
+        return True
+
+    # Developers can always use commands while the bot is locked
+    return is_developer(interaction.user.id)
+
+bot.tree.add_check(bot_lock_check)
+
+# =========================================================
 # DATA
 # =========================================================
 
 warnings_data = {}
 log_channels = {}
-
 
 def load_data():
     global warnings_data, log_channels
@@ -94,7 +106,6 @@ def load_data():
     except Exception as e:
         print(f"Failed to load data: {e}")
 
-
 def save_data():
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(
@@ -105,7 +116,6 @@ def save_data():
             f,
             indent=2
         )
-
 
 # =========================================================
 # HELPERS
