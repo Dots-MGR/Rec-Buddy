@@ -1428,6 +1428,251 @@ async def help_command(
     )
 
 # =========================================================
+# TICKET COMMAND
+# =========================================================
+
+@bot.tree.command(
+    name="ticketsetup",
+    description="Create the ticket creation panel"
+)
+@app_commands.checks.has_permissions(manage_channels=True)
+async def ticketsetup(
+    interaction: discord.Interaction
+):
+    embed = discord.Embed(
+        title="🎫 Support Tickets",
+        description=(
+            "Need help from the Rex Room staff team?\n\n"
+            "Click the button below to create a private support ticket."
+        ),
+        color=discord.Color.blurple()
+    )
+
+    embed.add_field(
+        name="📌 How it works",
+        value=(
+            "1. Click **Create Ticket**\n"
+            "2. Explain your issue\n"
+            "3. Wait for a staff member\n"
+            "4. Close the ticket when finished"
+        ),
+        inline=False
+    )
+
+    embed.set_footer(
+        text="Rec Buddy Ticket System"
+    )
+
+    await interaction.channel.send(
+        embed=embed,
+        view=TicketCreateView()
+    )
+
+    await interaction.response.send_message(
+        "✅ Ticket panel created.",
+        ephemeral=True
+    )
+
+# =========================================================
+# TICKET SYSTEM
+# =========================================================
+
+TICKET_CATEGORY_NAME = "Tickets"
+
+
+class TicketCloseView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label="Close Ticket",
+        emoji="🔒",
+        style=discord.ButtonStyle.danger,
+        custom_id="recbuddy:close_ticket"
+    )
+    async def close_ticket(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+        channel = interaction.channel
+
+        if not isinstance(channel, discord.TextChannel):
+            await interaction.response.send_message(
+                "❌ This isn't a ticket channel.",
+                ephemeral=True
+            )
+            return
+
+        # Only staff or users with Manage Channels can close tickets
+        if not interaction.user.guild_permissions.manage_channels:
+            await interaction.response.send_message(
+                "❌ You need Manage Channels to close this ticket.",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.send_message(
+            "🔒 Closing this ticket...",
+            ephemeral=True
+        )
+
+        await send_log(
+            interaction.guild,
+            "Ticket Closed",
+            f"**Channel:** {channel.mention}\n"
+            f"**Closed by:** {interaction.user.mention}",
+            discord.Color.red()
+        )
+
+        await asyncio.sleep(2)
+
+        try:
+            await channel.delete(
+                reason=f"Ticket closed by {interaction.user}"
+            )
+        except discord.Forbidden:
+            pass
+        except discord.HTTPException:
+            pass
+
+
+class TicketCreateView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label="Create Ticket",
+        emoji="🎫",
+        style=discord.ButtonStyle.primary,
+        custom_id="recbuddy:create_ticket"
+    )
+    async def create_ticket(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+        guild = interaction.guild
+        user = interaction.user
+
+        if guild is None:
+            return
+
+        # Prevent multiple tickets
+        existing_ticket = discord.utils.get(
+            guild.text_channels,
+            name=f"ticket-{user.name.lower().replace(' ', '-')}"
+        )
+
+        if existing_ticket:
+            await interaction.response.send_message(
+                f"❌ You already have a ticket: {existing_ticket.mention}",
+                ephemeral=True
+            )
+            return
+
+        # Find or create ticket category
+        category = discord.utils.get(
+            guild.categories,
+            name=TICKET_CATEGORY_NAME
+        )
+
+        try:
+            if category is None:
+                category = await guild.create_category(
+                    TICKET_CATEGORY_NAME,
+                    reason="Rec Buddy ticket system setup"
+                )
+
+            # Permission overwrites
+            overwrites = {
+                guild.default_role: discord.PermissionOverwrite(
+                    view_channel=False
+                ),
+                user: discord.PermissionOverwrite(
+                    view_channel=True,
+                    send_messages=True,
+                    read_message_history=True,
+                    attach_files=True,
+                    embed_links=True
+                ),
+                guild.me: discord.PermissionOverwrite(
+                    view_channel=True,
+                    send_messages=True,
+                    read_message_history=True,
+                    manage_channels=True,
+                    manage_messages=True
+                )
+            }
+
+            # Allow members with Manage Channels to access tickets
+            for member in guild.members:
+                if member.guild_permissions.manage_channels:
+                    overwrites[member] = discord.PermissionOverwrite(
+                        view_channel=True,
+                        send_messages=True,
+                        read_message_history=True,
+                        manage_messages=True
+                    )
+
+            channel = await guild.create_text_channel(
+                name=f"ticket-{user.name.lower().replace(' ', '-')}",
+                category=category,
+                overwrites=overwrites,
+                topic=f"Ticket opened by {user.id}",
+                reason=f"Ticket created by {user}"
+            )
+
+            embed = discord.Embed(
+                title="🎫 Support Ticket",
+                description=(
+                    f"Hello {user.mention}!\n\n"
+                    "Thanks for opening a ticket. A staff member "
+                    "will be with you shortly.\n\n"
+                    "When your issue has been resolved, use the "
+                    "**Close Ticket** button below."
+                ),
+                color=discord.Color.blurple()
+            )
+
+            embed.set_footer(
+                text="Rec Buddy Ticket System"
+            )
+
+            await channel.send(
+                content=user.mention,
+                embed=embed,
+                view=TicketCloseView()
+            )
+
+            await interaction.response.send_message(
+                f"✅ Your ticket has been created: {channel.mention}",
+                ephemeral=True
+            )
+
+            await send_log(
+                guild,
+                "Ticket Created",
+                f"**Ticket:** {channel.mention}\n"
+                f"**Created by:** {user.mention}",
+                discord.Color.green()
+            )
+
+        except discord.Forbidden:
+            await interaction.response.send_message(
+                "❌ I don't have permission to create ticket channels.",
+                ephemeral=True
+            )
+
+        except discord.HTTPException as e:
+            print(f"Ticket creation error: {repr(e)}")
+
+            await interaction.response.send_message(
+                "❌ Discord rejected the ticket creation.",
+                ephemeral=True
+            )
+
+# =========================================================
 # GLOBAL ERROR HANDLER
 # =========================================================
 
