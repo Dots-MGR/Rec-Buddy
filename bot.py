@@ -51,7 +51,6 @@ def run_web():
 
 threading.Thread(target=run_web, daemon=True).start()
 
-
 # =========================================================
 # INTENTS
 # =========================================================
@@ -61,26 +60,25 @@ intents.guilds = True
 intents.members = True
 intents.message_content = True
 
-
 bot = commands.Bot(
     command_prefix=".",
-    intents=intents
+    intents=intents,
+    tree_cls=DevCommandTree
 )
-
-# =========================================================
-# BOT COMMAND LOCK
-# =========================================================
 
 BOT_COMMANDS_LOCKED = False
 
-async def bot_lock_check(interaction: discord.Interaction) -> bool:
-    if not BOT_COMMANDS_LOCKED:
-        return True
+class DevCommandTree(discord.app_commands.CommandTree):
+    async def interaction_check(
+        self,
+        interaction: discord.Interaction
+    ) -> bool:
+        # Normal operation: everyone can use commands
+        if not BOT_COMMANDS_LOCKED:
+            return True
 
-    # Developers can always use commands while the bot is locked
-    return is_developer(interaction.user.id)
-
-bot.tree.add_check(bot_lock_check)
+        # Locked: developers only
+        return is_developer(interaction.user.id)
 
 # =========================================================
 # DATA
