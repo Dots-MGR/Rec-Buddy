@@ -4,6 +4,7 @@ import threading
 from datetime import timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from dotenv import load_dotenv
+import asyncio
 
 import discord
 from discord.ext import commands
@@ -1307,7 +1308,6 @@ async def help_command(
         ephemeral=True
     )
 
-
 # =========================================================
 # GLOBAL ERROR HANDLER
 # =========================================================
@@ -1322,6 +1322,71 @@ async def on_app_command_error(
         error
     )
 
+# =========================================================
+# STATUSES
+# =========================================================
+
+async def status_loop():
+    await bot.wait_until_ready()
+
+    statuses = bot_config.get("status_messages", [])
+
+    if not statuses:
+        print("⚠️ No status messages configured.")
+        return
+
+    index = 0
+
+    while not bot.is_closed():
+        status = statuses[index]
+
+        status_type = str(
+            status.get("type", "playing")
+        ).lower()
+
+        status_text = str(
+            status.get("text", "")
+        )
+
+        if status_text:
+            if status_type == "playing":
+                activity = discord.Game(
+                    name=status_text
+                )
+
+            elif status_type == "watching":
+                activity = discord.Activity(
+                    type=discord.ActivityType.watching,
+                    name=status_text
+                )
+
+            elif status_type == "listening":
+                activity = discord.Activity(
+                    type=discord.ActivityType.listening,
+                    name=status_text
+                )
+
+            elif status_type == "competing":
+                activity = discord.Activity(
+                    type=discord.ActivityType.competing,
+                    name=status_text
+                )
+
+            else:
+                print(
+                    f"⚠️ Unknown status type: {status_type}"
+                )
+                activity = discord.Game(
+                    name=status_text
+                )
+
+            await bot.change_presence(
+                activity=activity
+            )
+
+        index = (index + 1) % len(statuses)
+
+        await asyncio.sleep(30)
 
 # =========================================================
 # READY
@@ -1329,7 +1394,13 @@ async def on_app_command_error(
 
 @bot.event
 async def on_ready():
+    load_config()
     load_data()
+
+    if not hasattr(bot, "status_task"):
+        bot.status_task = asyncio.create_task(
+            status_loop()
+        )
 
     try:
         synced = await bot.tree.sync()
@@ -1350,7 +1421,6 @@ async def on_ready():
         print(
             f"❌ Failed to sync commands: {repr(e)}"
         )
-
 
 # =========================================================
 # START
