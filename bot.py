@@ -99,6 +99,7 @@ bot = commands.Bot(
 
 warnings_data = {}
 log_channels = {}
+ticket_panels = {}
 
 def load_config():
     global bot_config
@@ -119,7 +120,7 @@ def load_config():
         print(f"❌ Failed to load {CONFIG_FILE}: {e}")
 
 def load_data():
-    global warnings_data, log_channels
+    global warnings_data, log_channels, ticket_panels
 
     try:
         with open(DATA_FILE, "r", encoding="utf-8") as f:
@@ -127,10 +128,12 @@ def load_data():
 
         warnings_data = data.get("warnings", {})
         log_channels = data.get("log_channels", {})
+        ticket_panels = data.get("ticket_panels", {})
 
     except FileNotFoundError:
         warnings_data = {}
         log_channels = {}
+        ticket_panels = {}
 
     except Exception as e:
         print(f"Failed to load data: {e}")
@@ -140,7 +143,8 @@ def save_data():
         json.dump(
             {
                 "warnings": warnings_data,
-                "log_channels": log_channels
+                "log_channels": log_channels,
+                "ticket_panels": ticket_panels
             },
             f,
             indent=2
@@ -1403,7 +1407,9 @@ async def help_command(
     embed.add_field(
         name="🎫 Tickets",
         value=(
-            "`/ticketsetup` — Set up the ticket creation panel\n"
+            "`/ticketsetup` — Create a customizable ticket panel\n"
+            "`/ticketedit` — Edit the existing ticket panel\n"
+            "`/ticketdelete` — Delete the ticket panel\n"
             "🎫 **Create Ticket** — Open a private support ticket\n"
             "🔒 **Close Ticket** — Close the current ticket"
         ),
@@ -1438,30 +1444,301 @@ async def help_command(
     )
 
 # =========================================================
-# TICKET COMMAND
+# /TICKETSETUP
 # =========================================================
 
 @bot.tree.command(
     name="ticketsetup",
-    description="Create the ticket creation panel"
+    description="Create a customizable ticket panel"
+)
+@app_commands.describe(
+    title="Title shown on the ticket panel",
+    description="Description shown on the ticket panel",
+    button_text="Text shown on the ticket button",
+    button_emoji="Emoji shown on the ticket button",
+    category="Category where tickets will be created"
 )
 @app_commands.checks.has_permissions(manage_channels=True)
 async def ticketsetup(
+    interaction: discord.Interaction,
+    title: str = TICKET_DEFAULT_TITLE,
+    description: str = TICKET_DEFAULT_DESCRIPTION,
+    button_text: str = TICKET_DEFAULT_BUTTON,
+    button_emoji: str = TICKET_DEFAULT_EMOJI,
+    category: str = TICKET_DEFAULT_CATEGORY
+):
+    guild = interaction.guild
+
+    if guild is None:
+        return
+
+    # Prevent multiple ticket panels
+    if str(guild.id) in ticket_panels:
+        await interaction.response.send_message(
+            "❌ This server already has a ticket panel.\n"
+            "Use `/ticketedit` to change it or "
+            "`/ticketdelete` to remove it first.",
+            ephemeral=True
+        )
+        return
+
+    # Save configuration temporarily before creating the message
+    ticket_panels[str(guild.id)] = {
+        "title": title,
+        "description": description,
+        "button_text": button_text,
+        "button_emoji": button_emoji,
+        "category": category,
+        "channel_id": interaction.channel.id,
+        "message_id": None
+    }
+
+    try:
+        message = await interaction.channel.send(
+            embed=build_ticket_embed(guild.id),
+            view=TicketCreateView(guild.id)
+        )
+
+        ticket_panels[str(guild.id)]["message_id"] = message.id
+
+        save_data()
+
+        await interaction.response.send_message(
+            "✅ Ticket panel created successfully.",
+            ephemeral=True
+        )
+
+    except discord.HTTPException as e:
+        ticket_panels.pop(str(guild.id), None)
+
+        print(
+            f"Ticket panel creation error: {repr(e)}"
+        )
+
+        await interaction.response.send_message(
+            "❌ Failed to create the ticket panel.",
+            ephemeral=True
+        )
+
+# =========================================================
+# /TICKETEDIT
+# =========================================================
+
+@bot.tree.command(
+    name="ticketedit",
+    description="Edit the existing ticket panel"
+)
+@app_commands.describe(
+    title="New panel title",
+    description="New panel description",
+    button_text="New button text",
+    button_emoji="New button emoji",
+    category="New ticket category"
+)
+@app_commands.checks.has_permissions(manage_channels=True)
+async def ticketedit(
+    interaction: discord.Interaction,
+    title: str | None = None,
+    description: str | None = None,
+    button_text: str | None = None,
+    button_emoji: str | None = None,
+    category: str | None = None
+):
+    guild = interaction.guild
+
+    if guild is None:
+        return
+
+    guild_id = str(guild.id)
+
+    if guild_id not in ticket_panels:
+        await interaction.response.send_message(
+            "❌ This server doesn't have a ticket panel yet.\n"
+            "Use `/ticketsetup` first.",
+            ephemeral=True
+        )
+        return
+
+    config = ticket_panels[guild_id]
+
+    if title is not None:
+        config["title"] = title
+
+    if description is not None:
+        config["description"] = description
+
+    if button_text is not None:
+        config["button_text"] = button_text
+
+    if button_emoji is not None:
+        config["button_emoji"] = button_emoji
+
+    if category is not None:
+        config["category"] = category
+
+    channel = guild.get_channel(
+        config.get("channel_id")
+    )
+
+    if not isinstance(channel, discord.TextChannel):
+        await interaction.response.send_message(
+            "❌ I couldn't find the ticket panel's channel.",
+            ephemeral=True
+        )
+        return
+
+    try:
+        message = await channel.fetch_message(
+            config.get("message_id")
+        )
+
+        await message.edit(
+            embed=build_ticket_embed(guild.id),
+            view=TicketCreateView(guild.id)
+        )
+
+        save_data()
+
+        await interaction.response.send_message(
+            "✅ Ticket panel updated successfully.",
+            ephemeral=True
+        )
+
+    except discord.NotFound:
+        await interaction.response.send_message(
+            "❌ The ticket panel message no longer exists.\n"
+            "Use `/ticketdelete` and then `/ticketsetup` again.",
+            ephemeral=True
+        )
+
+    except discord.Forbidden:
+        await interaction.response.send_message(
+            "❌ I don't have permission to edit the ticket panel.",
+            ephemeral=True
+        )
+
+    except discord.HTTPException as e:
+        print(
+            f"Ticket panel edit error: {repr(e)}"
+        )
+
+        await interaction.response.send_message(
+            "❌ Failed to edit the ticket panel.",
+            ephemeral=True
+        )
+
+# =========================================================
+# /TICKETDELETE
+# =========================================================
+
+@bot.tree.command(
+    name="ticketdelete",
+    description="Delete the existing ticket panel"
+)
+@app_commands.checks.has_permissions(manage_channels=True)
+async def ticketdelete(
     interaction: discord.Interaction
 ):
+    guild = interaction.guild
+
+    if guild is None:
+        return
+
+    guild_id = str(guild.id)
+
+    if guild_id not in ticket_panels:
+        await interaction.response.send_message(
+            "❌ This server doesn't have a ticket panel.",
+            ephemeral=True
+        )
+        return
+
+    config = ticket_panels[guild_id]
+
+    channel = guild.get_channel(
+        config.get("channel_id")
+    )
+
+    try:
+        if isinstance(channel, discord.TextChannel):
+            try:
+                message = await channel.fetch_message(
+                    config.get("message_id")
+                )
+
+                await message.delete()
+
+            except discord.NotFound:
+                pass
+
+        # Remove saved configuration
+        del ticket_panels[guild_id]
+
+        save_data()
+
+        await interaction.response.send_message(
+            "🗑️ Ticket panel deleted successfully.",
+            ephemeral=True
+        )
+
+    except discord.Forbidden:
+        await interaction.response.send_message(
+            "❌ I don't have permission to delete the ticket panel.",
+            ephemeral=True
+        )
+
+    except discord.HTTPException as e:
+        print(
+            f"Ticket panel deletion error: {repr(e)}"
+        )
+
+        await interaction.response.send_message(
+            "❌ Failed to delete the ticket panel.",
+            ephemeral=True
+        )
+
+# =========================================================
+# TICKET SYSTEM
+# =========================================================
+
+TICKET_DEFAULT_TITLE = "🎫 Support Tickets"
+TICKET_DEFAULT_DESCRIPTION = (
+    "Need help from the Rex Room staff team?\n\n"
+    "Click the button below to create a private support ticket."
+)
+TICKET_DEFAULT_BUTTON = "Create Ticket"
+TICKET_DEFAULT_EMOJI = "🎫"
+TICKET_DEFAULT_CATEGORY = "Tickets"
+
+
+def get_ticket_config(guild_id: int):
+    return ticket_panels.get(
+        str(guild_id),
+        {
+            "title": TICKET_DEFAULT_TITLE,
+            "description": TICKET_DEFAULT_DESCRIPTION,
+            "button_text": TICKET_DEFAULT_BUTTON,
+            "button_emoji": TICKET_DEFAULT_EMOJI,
+            "category": TICKET_DEFAULT_CATEGORY,
+            "channel_id": None,
+            "message_id": None
+        }
+    )
+
+
+def build_ticket_embed(guild_id: int):
+    config = get_ticket_config(guild_id)
+
     embed = discord.Embed(
-        title="🎫 Support Tickets",
-        description=(
-            "Need help from the Rex Room staff team?\n\n"
-            "Click the button below to create a private support ticket."
-        ),
+        title=config["title"],
+        description=config["description"],
         color=discord.Color.blurple()
     )
 
     embed.add_field(
         name="📌 How it works",
         value=(
-            "1. Click **Create Ticket**\n"
+            "1. Click the button below\n"
             "2. Explain your issue\n"
             "3. Wait for a staff member\n"
             "4. Close the ticket when finished"
@@ -1473,21 +1750,8 @@ async def ticketsetup(
         text="Rec Buddy Ticket System"
     )
 
-    await interaction.channel.send(
-        embed=embed,
-        view=TicketCreateView()
-    )
+    return embed
 
-    await interaction.response.send_message(
-        "✅ Ticket panel created.",
-        ephemeral=True
-    )
-
-# =========================================================
-# TICKET SYSTEM
-# =========================================================
-
-TICKET_CATEGORY_NAME = "Tickets"
 
 class TicketCloseView(discord.ui.View):
     def __init__(self):
@@ -1513,7 +1777,6 @@ class TicketCloseView(discord.ui.View):
             )
             return
 
-        # Only staff or users with Manage Channels can close tickets
         if not interaction.user.guild_permissions.manage_channels:
             await interaction.response.send_message(
                 "❌ You need Manage Channels to close this ticket.",
@@ -1540,25 +1803,40 @@ class TicketCloseView(discord.ui.View):
             await channel.delete(
                 reason=f"Ticket closed by {interaction.user}"
             )
+
         except discord.Forbidden:
             pass
+
         except discord.HTTPException:
             pass
 
+
 class TicketCreateView(discord.ui.View):
-    def __init__(self):
+    def __init__(self, guild_id: int):
         super().__init__(timeout=None)
 
-    @discord.ui.button(
-        label="Create Ticket",
-        emoji="🎫",
-        style=discord.ButtonStyle.primary,
-        custom_id="recbuddy:create_ticket"
-    )
+        config = get_ticket_config(guild_id)
+
+        # Customize the button from the guild's configuration
+        button = discord.ui.Button(
+            label=config.get(
+                "button_text",
+                TICKET_DEFAULT_BUTTON
+            ),
+            emoji=config.get(
+                "button_emoji",
+                TICKET_DEFAULT_EMOJI
+            ),
+            style=discord.ButtonStyle.primary,
+            custom_id="recbuddy:create_ticket"
+        )
+
+        button.callback = self.create_ticket
+        self.add_item(button)
+
     async def create_ticket(
         self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
+        interaction: discord.Interaction
     ):
         guild = interaction.guild
         user = interaction.user
@@ -1566,37 +1844,46 @@ class TicketCreateView(discord.ui.View):
         if guild is None:
             return
 
-        # Prevent multiple tickets
-        existing_ticket = discord.utils.get(
-            guild.text_channels,
-            name=f"ticket-{user.name.lower().replace(' ', '-')}"
+        config = get_ticket_config(guild.id)
+
+        # Look for an existing ticket belonging to this user
+        existing_ticket = discord.utils.find(
+            lambda channel:
+                isinstance(channel, discord.TextChannel)
+                and channel.topic == f"Ticket opened by {user.id}",
+            guild.text_channels
         )
 
         if existing_ticket:
             await interaction.response.send_message(
-                f"❌ You already have a ticket: {existing_ticket.mention}",
+                f"❌ You already have a ticket: "
+                f"{existing_ticket.mention}",
                 ephemeral=True
             )
             return
 
-        # Find or create ticket category
+        category_name = config.get(
+            "category",
+            TICKET_DEFAULT_CATEGORY
+        )
+
         category = discord.utils.get(
             guild.categories,
-            name=TICKET_CATEGORY_NAME
+            name=category_name
         )
 
         try:
             if category is None:
                 category = await guild.create_category(
-                    TICKET_CATEGORY_NAME,
-                    reason="Rec Buddy ticket system setup"
+                    category_name,
+                    reason="Rec Buddy ticket system"
                 )
 
-            # Permission overwrites
             overwrites = {
                 guild.default_role: discord.PermissionOverwrite(
                     view_channel=False
                 ),
+
                 user: discord.PermissionOverwrite(
                     view_channel=True,
                     send_messages=True,
@@ -1604,6 +1891,7 @@ class TicketCreateView(discord.ui.View):
                     attach_files=True,
                     embed_links=True
                 ),
+
                 guild.me: discord.PermissionOverwrite(
                     view_channel=True,
                     send_messages=True,
@@ -1613,7 +1901,7 @@ class TicketCreateView(discord.ui.View):
                 )
             }
 
-            # Allow members with Manage Channels to access tickets
+            # Staff with Manage Channels can see tickets
             for member in guild.members:
                 if member.guild_permissions.manage_channels:
                     overwrites[member] = discord.PermissionOverwrite(
@@ -1623,8 +1911,15 @@ class TicketCreateView(discord.ui.View):
                         manage_messages=True
                     )
 
+            # Discord channel names can't contain spaces
+            safe_name = (
+                user.name
+                .lower()
+                .replace(" ", "-")
+            )
+
             channel = await guild.create_text_channel(
-                name=f"ticket-{user.name.lower().replace(' ', '-')}",
+                name=f"ticket-{safe_name}",
                 category=category,
                 overwrites=overwrites,
                 topic=f"Ticket opened by {user.id}",
@@ -1654,7 +1949,8 @@ class TicketCreateView(discord.ui.View):
             )
 
             await interaction.response.send_message(
-                f"✅ Your ticket has been created: {channel.mention}",
+                f"✅ Your ticket has been created: "
+                f"{channel.mention}",
                 ephemeral=True
             )
 
@@ -1673,7 +1969,9 @@ class TicketCreateView(discord.ui.View):
             )
 
         except discord.HTTPException as e:
-            print(f"Ticket creation error: {repr(e)}")
+            print(
+                f"Ticket creation error: {repr(e)}"
+            )
 
             await interaction.response.send_message(
                 "❌ Discord rejected the ticket creation.",
@@ -1773,8 +2071,12 @@ async def on_ready():
         bot.status_task = asyncio.create_task(
             status_loop()
         )
+        
     if not hasattr(bot, "ticket_views_added"):
-        bot.add_view(TicketCreateView())
+        for guild_id in ticket_panels:
+            bot.add_view(
+                TicketCreateView(int(guild_id))
+            )
         bot.add_view(TicketCloseView())
         bot.ticket_views_added = True
 
