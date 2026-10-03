@@ -1765,6 +1765,10 @@ async def on_ready():
         bot.status_task = asyncio.create_task(
             status_loop()
         )
+    if not hasattr(bot, "ticket_views_added"):
+        bot.add_view(TicketCreateView())
+        bot.add_view(TicketCloseView())
+        bot.ticket_views_added = True
 
     try:
         synced = await bot.tree.sync()
