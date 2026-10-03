@@ -938,6 +938,125 @@ async def clearwarnings(
         discord.Color.green()
     )
 
+# =========================================================
+# /ROLE
+# =========================================================
+
+@bot.tree.command(
+    name="role",
+    description="Add or remove a role from a member"
+)
+@app_commands.describe(
+    member="The member to modify",
+    role="The role to add or remove",
+    action="Whether to add or remove the role"
+)
+@app_commands.choices(
+    action=[
+        app_commands.Choice(name="Add", value="add"),
+        app_commands.Choice(name="Remove", value="remove"),
+    ]
+)
+@app_commands.checks.has_permissions(manage_roles=True)
+async def role(
+    interaction: discord.Interaction,
+    member: discord.Member,
+    role: discord.Role,
+    action: app_commands.Choice[str]
+):
+    # Don't allow manipulating @everyone
+    if role.is_default():
+        await interaction.response.send_message(
+            "❌ You can't modify the @everyone role.",
+            ephemeral=True
+        )
+        return
+
+    # Bot must be above the role
+    if role >= interaction.guild.me.top_role:
+        await interaction.response.send_message(
+            "❌ I can't manage that role because it is equal to or higher "
+            "than my highest role.",
+            ephemeral=True
+        )
+        return
+
+    # Moderator must be above the role unless they're the server owner
+    if interaction.user != interaction.guild.owner:
+        if role >= interaction.user.top_role:
+            await interaction.response.send_message(
+                "❌ You can't manage a role that is equal to or higher "
+                "than your highest role.",
+                ephemeral=True
+            )
+            return
+
+    try:
+        if action.value == "add":
+            if role in member.roles:
+                await interaction.response.send_message(
+                    f"ℹ️ {member.mention} already has {role.mention}.",
+                    ephemeral=True
+                )
+                return
+
+            await member.add_roles(
+                role,
+                reason=f"Role added by {interaction.user}"
+            )
+
+            await interaction.response.send_message(
+                f"✅ Added {role.mention} to {member.mention}."
+            )
+
+            await send_log(
+                interaction.guild,
+                "Role Added",
+                f"**Member:** {member.mention}\n"
+                f"**Role:** {role.mention}\n"
+                f"**Moderator:** {interaction.user.mention}",
+                discord.Color.green()
+            )
+
+        else:
+            if role not in member.roles:
+                await interaction.response.send_message(
+                    f"ℹ️ {member.mention} doesn't have {role.mention}.",
+                    ephemeral=True
+                )
+                return
+
+            await member.remove_roles(
+                role,
+                reason=f"Role removed by {interaction.user}"
+            )
+
+            await interaction.response.send_message(
+                f"✅ Removed {role.mention} from {member.mention}."
+            )
+
+            await send_log(
+                interaction.guild,
+                "Role Removed",
+                f"**Member:** {member.mention}\n"
+                f"**Role:** {role.mention}\n"
+                f"**Moderator:** {interaction.user.mention}",
+                discord.Color.orange()
+            )
+
+    except discord.Forbidden:
+        await interaction.response.send_message(
+            "❌ I don't have permission to manage that role.",
+            ephemeral=True
+        )
+
+    except discord.HTTPException as e:
+        print(f"Role command error: {repr(e)}")
+
+        await interaction.response.send_message(
+            "❌ Discord rejected the role change.",
+            ephemeral=True
+        )
 
 # =========================================================
 # /USERINFO
