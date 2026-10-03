@@ -16,6 +16,8 @@ DEVELOPER_IDS = {
     837680779072110593,  
 }
 
+BOT_COMMANDS_LOCKED = False
+
 def is_developer(user_id: int) -> bool:
     return user_id in DEVELOPER_IDS
 
