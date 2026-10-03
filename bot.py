@@ -1356,21 +1356,20 @@ async def logchannel(
         ephemeral=True
     )
 
-
 # =========================================================
 # /HELP
 # =========================================================
 
 @bot.tree.command(
     name="help",
-    description="Show Rec Buddy's moderation commands."
+    description="Show Rec Buddy's commands."
 )
 async def help_command(
     interaction: discord.Interaction
 ):
     embed = discord.Embed(
         title="🤖 Rec Buddy",
-        description="Rex Room's moderation bot.",
+        description="Rex Room's moderation and support bot.",
         color=discord.Color.blurple()
     )
 
@@ -1379,13 +1378,14 @@ async def help_command(
         value=(
             "`/purge` — Delete messages\n"
             "`/warn` — Warn a member\n"
-            "`/warnings` — View warnings\n"
-            "`/clearwarnings` — Clear warnings\n"
+            "`/warnings` — View a member's warnings\n"
+            "`/clearwarnings` — Clear a member's warnings\n"
             "`/kick` — Kick a member\n"
             "`/ban` — Ban a member\n"
             "`/unban` — Unban a user\n"
             "`/timeout` — Timeout a member\n"
-            "`/untimeout` — Remove a timeout"
+            "`/untimeout` — Remove a timeout\n"
+            "`/role` — Add or remove a role from a member"
         ),
         inline=False
     )
@@ -1395,7 +1395,17 @@ async def help_command(
         value=(
             "`/lock` — Lock a channel\n"
             "`/unlock` — Unlock a channel\n"
-            "`/slowmode` — Configure slowmode"
+            "`/slowmode` — Configure channel slowmode"
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="🎫 Tickets",
+        value=(
+            "`/ticketsetup` — Set up the ticket creation panel\n"
+            "🎫 **Create Ticket** — Open a private support ticket\n"
+            "🔒 **Close Ticket** — Close the current ticket"
         ),
         inline=False
     )
