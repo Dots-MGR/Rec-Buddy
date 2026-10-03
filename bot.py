@@ -1489,7 +1489,6 @@ async def ticketsetup(
 
 TICKET_CATEGORY_NAME = "Tickets"
 
-
 class TicketCloseView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -1545,7 +1544,6 @@ class TicketCloseView(discord.ui.View):
             pass
         except discord.HTTPException:
             pass
-
 
 class TicketCreateView(discord.ui.View):
     def __init__(self):
