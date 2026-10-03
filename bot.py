@@ -26,7 +26,15 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 PORT = int(os.getenv("PORT", "8000"))
 
 DATA_FILE = "data.json"
+CONFIG_FILE = "config.json"
 
+bot_config = {
+    "commands": {},
+    "status_messages": [],
+    "owner_id": None,
+    "tags": [],
+    "description": ""
+}
 
 # =========================================================
 # FAKE WEB SERVER FOR RENDER
