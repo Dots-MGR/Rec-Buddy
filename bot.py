@@ -65,10 +65,9 @@ intents.message_content = True
 
 
 bot = commands.Bot(
-    command_prefix="!",
+    command_prefix=".",
     intents=intents
 )
-
 
 # =========================================================
 # DATA
@@ -1114,6 +1113,37 @@ async def dev(interaction: discord.Interaction):
         await interaction.response.send_message(
             f"❌ Discord API error while assigning the role: `{e}`",
             ephemeral=True
+        )
+
+# =========================================================
+# DEVELOPER BOTLOCKER COMMAND
+# =========================================================
+
+@bot.tree.command(
+    name="devbotlock",
+    description="Toggle the bot command lock"
+)
+async def devbotlock(interaction: discord.Interaction):
+    global BOT_COMMANDS_LOCKED
+
+    if not is_developer(interaction.user.id):
+        await interaction.response.send_message(
+            "❌ You do not have developer access.",
+            ephemeral=True
+        )
+        return
+
+    BOT_COMMANDS_LOCKED = not BOT_COMMANDS_LOCKED
+
+    if BOT_COMMANDS_LOCKED:
+        await interaction.response.send_message(
+            "🔒 **Bot command lock enabled.**\n"
+            "Only developers can use bot commands until it is unlocked."
+        )
+    else:
+        await interaction.response.send_message(
+            "🔓 **Bot command lock disabled.**\n"
+            "Normal command access has been restored."
         )
 
 # =========================================================
