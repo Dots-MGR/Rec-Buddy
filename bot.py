@@ -99,6 +99,24 @@ bot = commands.Bot(
 warnings_data = {}
 log_channels = {}
 
+def load_config():
+    global bot_config
+
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            bot_config = json.load(f)
+
+        print("✅ Bot configuration loaded.")
+
+    except FileNotFoundError:
+        print(f"⚠️ {CONFIG_FILE} was not found. Using default configuration.")
+
+    except json.JSONDecodeError as e:
+        print(f"❌ Invalid JSON in {CONFIG_FILE}: {e}")
+
+    except Exception as e:
+        print(f"❌ Failed to load {CONFIG_FILE}: {e}")
+
 def load_data():
     global warnings_data, log_channels
 
