@@ -13,7 +13,7 @@ load_dotenv()
 
 # Developer access
 DEVELOPER_IDS = {
-    837680779072110593,  # Replace with your Discord User ID
+    837680779072110593,  
 }
 
 def is_developer(user_id: int) -> bool:
