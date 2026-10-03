@@ -52,19 +52,8 @@ def run_web():
 threading.Thread(target=run_web, daemon=True).start()
 
 # =========================================================
-# INTENTS
+# BOTLOCKER SETUP
 # =========================================================
-
-intents = discord.Intents.default()
-intents.guilds = True
-intents.members = True
-intents.message_content = True
-
-bot = commands.Bot(
-    command_prefix=".",
-    intents=intents,
-    tree_cls=DevCommandTree
-)
 
 BOT_COMMANDS_LOCKED = False
 
@@ -79,6 +68,21 @@ class DevCommandTree(discord.app_commands.CommandTree):
 
         # Locked: developers only
         return is_developer(interaction.user.id)
+
+# =========================================================
+# INTENTS
+# =========================================================
+
+intents = discord.Intents.default()
+intents.guilds = True
+intents.members = True
+intents.message_content = True
+
+bot = commands.Bot(
+    command_prefix=".",
+    intents=intents,
+    tree_cls=DevCommandTree
+)
 
 # =========================================================
 # DATA
