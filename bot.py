@@ -1444,6 +1444,23 @@ async def help_command(
     )
 
 # =========================================================
+# TICKET SYSTEM CONFIG
+# =========================================================
+
+TICKET_DEFAULT_TITLE = "🎫 Support Tickets"
+
+TICKET_DEFAULT_DESCRIPTION = (
+    "Need help from the Rex Room staff team?\n\n"
+    "Click the button below to create a private support ticket."
+)
+
+TICKET_DEFAULT_BUTTON = "Create Ticket"
+
+TICKET_DEFAULT_EMOJI = "🎫"
+
+TICKET_DEFAULT_CATEGORY = "Tickets"
+
+# =========================================================
 # /TICKETSETUP
 # =========================================================
 
